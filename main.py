@@ -1,50 +1,68 @@
 #!/usr/bin/env python3
-"""Write one original funny line for The GPS Swears It Was a Shortcut.
+"""GPS excuse entry for make.fun.
 
-Pure standard library, no network. Writes the line to /output/entry.txt
-and prints it to stdout.
+The program holds the GPS's one-line excuse for sending the driver down
+the wrong road, checks it against the bounty gate, and drops it into
+/output/entry.txt for the grader. Standard library only; no network.
 """
 
 import os
+import sys
 
-OUTPUT_PATH = "/output/entry.txt"
-
-
-def get_line() -> str:
-    """Return the entry line: the GPS defends its shortcut."""
-    return (
-        "That dirt road WAS a shortcut \u2014 it just shortcuts straight "
-        "into a lake, and the map never mentioned the lake part."
-    )
+ENTRY_PATH = "/output/entry.txt"
+MAX_CHARS = 200
 
 
-LINE = get_line()
+def excuse() -> str:
+    """The GPS speaks for itself: the shortcut was real, the lake was not."""
+    first_half = "That dirt road WAS a shortcut \u2014 it just shortcuts straight "
+    second_half = "into a lake, and the map never mentioned the lake part."
+    return first_half + second_half
 
 
-def validate(line: str) -> None:
-    """Enforce the gate: 1-200 chars, exactly one non-blank UTF-8 line."""
+def check(line: str) -> list:
+    """Collect every gate violation; an empty list means the line is good.
+    The gate is the bounty text: one line, at most 200 characters."""
+    problems = []
     if line != line.strip():
-        raise ValueError("entry must have no leading/trailing whitespace")
+        problems.append("leading or trailing whitespace")
     if len(line.splitlines()) != 1:
-        raise ValueError("entry must be exactly one line")
-    if not 1 <= len(line) <= 200:
-        raise ValueError("entry line must be 1-200 characters")
+        problems.append("must be exactly one line")
+    if not 1 <= len(line) <= MAX_CHARS:
+        problems.append("must be 1-200 characters")
     if not line.strip():
-        raise ValueError("entry must not be only whitespace")
-    line.encode("utf-8")  # must be valid UTF-8
+        problems.append("must not be blank")
+    try:
+        line.encode("utf-8")
+    except UnicodeEncodeError:
+        problems.append("must be valid UTF-8")
+    return problems
 
 
-def main() -> None:
-    validate(LINE)
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        f.write(LINE + "\n")
-    # Round-trip check: what the grader reads must be exactly the line,
-    # trailing newline included, so the gate sees the same 114 characters.
-    with open(OUTPUT_PATH, encoding="utf-8") as f:
-        assert f.read() == LINE + "\n", "entry.txt round-trip mismatch"
-    print(LINE)
+def save(line: str) -> None:
+    """Write the line out, then read it back and confirm it matches."""
+    folder = os.path.dirname(ENTRY_PATH)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(ENTRY_PATH, "w", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    with open(ENTRY_PATH, encoding="utf-8") as handle:
+        stored = handle.read()
+    if stored != line + "\n":
+        raise SystemExit("entry.txt does not match the line")
+
+
+def run() -> int:
+    """Validate, save, and print the excuse."""
+    line = excuse()
+    problems = check(line)
+    if problems:
+        print("gate failed: " + "; ".join(problems), file=sys.stderr)
+        return 1
+    save(line)
+    print(line)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run())
